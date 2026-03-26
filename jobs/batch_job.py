@@ -103,3 +103,7 @@ def main():
         err = r.get("qc_error", 0) + r.get("write_error", 0)
         logging.info(f"  {sheet_name}: checked={r.get('checked',0)} filled={r.get('filled',0)} skipped={r.get('skipped',0)} not_found={r.get('not_found',0)} error={err}")
     logging.info("=" * 60)
+
+
+if __name__ == "__main__":
+    main()

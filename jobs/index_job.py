@@ -11,3 +11,7 @@ def main():
     date_folders = [x.strip() for x in date_folders_env.split(",") if x.strip()] or None
 
     build_and_save_index(BUCKET_NAME, date_folders)
+
+
+if __name__ == "__main__":
+    main()

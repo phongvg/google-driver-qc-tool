@@ -166,7 +166,10 @@ def _process_row(sheet_name: str, i: int, row: list, folder_index: dict, recheck
 
 
 def process_batch_sheet(sheets_service, sheet_name: str, folder_index: dict, max_workers: int = 7, recheck_all: bool = False) -> dict:
-    rows = read_sheet(sheets_service, sheet_name)
+    # The Google API client/httplib2 transport is not thread-safe enough to share
+    # across the top-level batch threads in Cloud Run jobs. Use a thread-local
+    # Sheets client for per-sheet reads/writes.
+    rows = read_sheet(_get_thread_sheets_service(), sheet_name)
     if len(rows) <= 1:
         return {"skipped": 0, "filled": 0, "checked": 0, "not_found": 0}
 
@@ -202,7 +205,7 @@ def process_batch_sheet(sheets_service, sheet_name: str, folder_index: dict, max
         nonlocal rows_pending
         if pending_writes:
             try:
-                batch_write(sheets_service, pending_writes)
+                batch_write(_get_thread_sheets_service(), pending_writes)
                 pending_writes.clear()
             except Exception:
                 logging.exception(f"[{sheet_name}] Failed to write batch to sheet")

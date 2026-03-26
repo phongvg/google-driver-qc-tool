@@ -1,11 +1,16 @@
 import json
 import logging
 import time
+import os
 from datetime import datetime, timezone
 
 from google.cloud import storage
 
-from clients.drive_client import get_drive_service, build_folder_index_rich
+from clients.drive_client import (
+    get_drive_service,
+    build_folder_index_rich,
+    discover_active_date_folders,
+)
 
 INDEX_BLOB = "folder_index.json"
 INDEX_VERSION = 1
@@ -65,20 +70,42 @@ def _merge(existing_entries: dict, new_entries: dict, now: str) -> tuple[dict, i
     return merged, conflicts
 
 
+def _is_truthy(value: str) -> bool:
+    return str(value).strip().lower() in {"1", "true", "yes", "y", "on"}
+
+
 def build_and_save_index(bucket_name: str, date_folders: list = None) -> dict:
-    is_full_scan = date_folders is None
     drive_service = get_drive_service()
-
-    logging.info(f"[index] Scanning Drive (date_folders={date_folders})...")
-    t0 = time.time()
-    new_entries = build_folder_index_rich(drive_service, date_folders)
-    logging.info(f"[index] Scan complete: {len(new_entries)} folders in {int(time.time()-t0)}s")
-
     client = storage.Client()
     bucket = client.bucket(bucket_name)
-
     existing = _load_existing(bucket)
     now = _now_iso()
+
+    force_full_scan = _is_truthy(os.environ.get("FULL_SCAN", ""))
+    lookback_days = int(os.environ.get("INDEX_LOOKBACK_DAYS", "2"))
+    effective_date_folders = date_folders
+
+    if effective_date_folders is None and not force_full_scan and existing.get("entries"):
+        effective_date_folders = discover_active_date_folders(
+            drive_service,
+            existing.get("updated_at") or existing.get("last_full_scan_at", ""),
+            lookback_days=lookback_days,
+        )
+        logging.info(
+            f"[index] Auto-incremental scan selected {len(effective_date_folders)} date folder(s) "
+            f"from updated_at={existing.get('updated_at', '')!r}"
+        )
+
+    is_full_scan = effective_date_folders is None
+
+    if effective_date_folders == []:
+        logging.info("[index] No active date folders detected. Keeping existing index unchanged.")
+        return existing
+
+    logging.info(f"[index] Scanning Drive (date_folders={effective_date_folders})...")
+    t0 = time.time()
+    new_entries = build_folder_index_rich(drive_service, effective_date_folders)
+    logging.info(f"[index] Scan complete: {len(new_entries)} folders in {int(time.time()-t0)}s")
 
     if is_full_scan:
         merged_entries = {name: {**e, "last_seen_at": now} for name, e in new_entries.items()}
@@ -99,7 +126,7 @@ def build_and_save_index(bucket_name: str, date_folders: list = None) -> dict:
     )
     logging.info(
         f"[index] Uploaded gs://{bucket_name}/{INDEX_BLOB} "
-        f"total={len(merged_entries)} conflicts={conflicts}"
+        f"total={len(merged_entries)} conflicts={conflicts} mode={'full' if is_full_scan else 'incremental'}"
     )
     if conflicts:
         logging.warning(f"[index] {conflicts} conflict(s) — same session_id found in different folders")

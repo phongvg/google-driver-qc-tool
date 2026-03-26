@@ -1,6 +1,7 @@
 import re
 import time
 import logging
+from datetime import datetime, timedelta, timezone
 from collections import deque
 
 from google.auth import default
@@ -93,6 +94,52 @@ def _list_subfolders(drive_service, folder_id: str) -> list:
     return items
 
 
+def _parse_iso_datetime(value: str):
+    if not value:
+        return None
+    try:
+        return datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+
+
+def _parse_date_folder_name(name: str):
+    try:
+        return datetime.strptime(name, "%Y-%m-%d").date()
+    except ValueError:
+        return None
+
+
+def discover_active_date_folders(
+    drive_service,
+    since_iso: str,
+    lookback_days: int = 2,
+) -> list:
+    root_children = _list_subfolders(drive_service, ROOT_FOLDER_ID)
+    since_dt = _parse_iso_datetime(since_iso)
+
+    if since_dt is None:
+        return [f["name"] for f in root_children]
+
+    cutoff_dt = since_dt - timedelta(days=max(0, lookback_days))
+    cutoff_date = cutoff_dt.date()
+    active = []
+
+    for folder in root_children:
+        folder_date = _parse_date_folder_name(folder["name"])
+        modified_dt = _parse_iso_datetime(folder.get("modifiedTime", ""))
+
+        if folder_date is not None:
+            if folder_date >= cutoff_date:
+                active.append(folder["name"])
+            continue
+
+        if modified_dt is None or modified_dt >= cutoff_dt:
+            active.append(folder["name"])
+
+    return active
+
+
 
 def build_folder_index_rich(drive_service, date_folders: list = None) -> dict:
     logging.info(f"[folder_index] Building rich index (date_folders={date_folders})...")
@@ -106,28 +153,33 @@ def build_folder_index_rich(drive_service, date_folders: list = None) -> dict:
         start_folders = _list_subfolders(drive_service, ROOT_FOLDER_ID)
 
     for date_folder in start_folders:
-        queue = deque([date_folder["id"]])
+        queue = deque(_list_subfolders(drive_service, date_folder["id"]))
         visited = {date_folder["id"]}
 
         while queue:
-            folder_id = queue.popleft()
-            for f in _list_subfolders(drive_service, folder_id):
-                if f["name"] not in entries:
-                    entries[f["name"]] = {
-                        "folder_id": f["id"],
-                        "folder_url": f"https://drive.google.com/drive/folders/{f['id']}",
-                        "folder_name": f["name"],
-                        "parent_date_folder": date_folder["name"],
-                        "modified_time": f.get("modifiedTime", ""),
-                    }
-                else:
-                    logging.warning(
-                        f"[folder_index] INTRA-SCAN CONFLICT {f['name']!r}: "
-                        f"existing={entries[f['name']]['folder_id']} new={f['id']} — keeping first"
-                    )
-                if f["id"] not in visited:
-                    visited.add(f["id"])
-                    queue.append(f["id"])
+            folder = queue.popleft()
+            if folder["id"] in visited:
+                continue
+            visited.add(folder["id"])
+
+            children = _list_subfolders(drive_service, folder["id"])
+            if children:
+                queue.extend(children)
+                continue
+
+            if folder["name"] not in entries:
+                entries[folder["name"]] = {
+                    "folder_id": folder["id"],
+                    "folder_url": f"https://drive.google.com/drive/folders/{folder['id']}",
+                    "folder_name": folder["name"],
+                    "parent_date_folder": date_folder["name"],
+                    "modified_time": folder.get("modifiedTime", ""),
+                }
+            else:
+                logging.warning(
+                    f"[folder_index] INTRA-SCAN CONFLICT {folder['name']!r}: "
+                    f"existing={entries[folder['name']]['folder_id']} new={folder['id']} — keeping first"
+                )
 
     logging.info(f"[folder_index] Rich index built: {len(entries)} entries")
     return entries

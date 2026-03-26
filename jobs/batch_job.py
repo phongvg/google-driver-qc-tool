@@ -38,6 +38,7 @@ def load_folder_index() -> dict:
 
 
 def main():
+    logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
     batch_numbers_env = os.environ.get("BATCH_NUMBERS", "")
     recheck_all = os.environ.get("RECHECK_ALL", "").strip().lower() == "all"
 

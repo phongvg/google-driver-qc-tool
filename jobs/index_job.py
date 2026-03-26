@@ -7,6 +7,7 @@ BUCKET_NAME = os.environ.get("GCS_BUCKET", "tbrain-qc-cache")
 
 
 def main():
+    logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
     date_folders_env = os.environ.get("DATE_FOLDERS", "")
     date_folders = [x.strip() for x in date_folders_env.split(",") if x.strip()] or None
 

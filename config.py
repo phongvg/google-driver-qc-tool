@@ -1,0 +1,12 @@
+import os
+
+SPREADSHEET_ID  = os.environ.get("SPREADSHEET_ID", "1puWk_DoB-BXVjdbvdSDue9U51-optRQaOmypAXRy8_o")
+ROOT_FOLDER_ID  = os.environ.get("ROOT_FOLDER_ID", "1J8vwiKhrkv_THCuZp0G9EJSivs7QllU0")
+
+COL_SESSION_ID  = 2
+COL_LINK        = 14
+COL_STATUS      = 21
+COL_REASON      = 22
+COL_CHECKED_AT  = 23
+COL_VIDEO_DUR   = 24
+COL_UPLOAD_DATE = 25

@@ -1,0 +1,127 @@
+main:
+  params: [args]
+  steps:
+
+    - init:
+        assign:
+          - project: "tbrain-services"
+          - region: "asia-southeast1"
+          - recheck_all: ${default(map.get(args, "recheck_all"), "")}
+
+    - run_index_job:
+        call: googleapis.run.v1.namespaces.jobs.run
+        args:
+          name: ${"namespaces/" + project + "/jobs/tbrain-games-qc-index"}
+          location: ${region}
+          body:
+            overrides:
+              containerOverrides:
+                - env:
+                    - name: GCS_BUCKET
+                      value: tbrain-qc-cache
+        result: index_op
+
+    - poll_index_job:
+        call: googleapis.run.v1.namespaces.executions.get
+        args:
+          name: ${index_op.metadata.name}
+        result: index_exec
+
+    - check_index_complete:
+        switch:
+          - condition: ${default(map.get(index_exec.status, "completionTime"), "") == ""}
+            next: sleep_before_poll
+
+    - check_index_success:
+        switch:
+          - condition: ${default(map.get(index_exec.status, "failedCount"), 0) > 0}
+            raise: "Index job failed — check Cloud Run logs before running batch jobs"
+        next: run_batches_parallel
+
+    - sleep_before_poll:
+        call: sys.sleep
+        args:
+          seconds: 15
+        next: poll_index_job
+
+    - run_batches_parallel:
+        parallel:
+          branches:
+            - run_batch_a:
+                steps:
+                  - exec_a:
+                      call: googleapis.run.v1.namespaces.jobs.run
+                      args:
+                        name: ${"namespaces/" + project + "/jobs/tbrain-games-qc-job"}
+                        location: ${region}
+                        body:
+                          overrides:
+                            containerOverrides:
+                              - env:
+                                  - name: BATCH_NUMBERS
+                                    value: "1-10"
+                                  - name: RECHECK_ALL
+                                    value: ${recheck_all}
+                                  - name: GCS_BUCKET
+                                    value: tbrain-qc-cache
+                      result: result_a
+
+            - run_batch_b:
+                steps:
+                  - exec_b:
+                      call: googleapis.run.v1.namespaces.jobs.run
+                      args:
+                        name: ${"namespaces/" + project + "/jobs/tbrain-games-qc-job"}
+                        location: ${region}
+                        body:
+                          overrides:
+                            containerOverrides:
+                              - env:
+                                  - name: BATCH_NUMBERS
+                                    value: "11-20"
+                                  - name: RECHECK_ALL
+                                    value: ${recheck_all}
+                                  - name: GCS_BUCKET
+                                    value: tbrain-qc-cache
+                      result: result_b
+
+            - run_batch_c:
+                steps:
+                  - exec_c:
+                      call: googleapis.run.v1.namespaces.jobs.run
+                      args:
+                        name: ${"namespaces/" + project + "/jobs/tbrain-games-qc-job"}
+                        location: ${region}
+                        body:
+                          overrides:
+                            containerOverrides:
+                              - env:
+                                  - name: BATCH_NUMBERS
+                                    value: "21-30"
+                                  - name: RECHECK_ALL
+                                    value: ${recheck_all}
+                                  - name: GCS_BUCKET
+                                    value: tbrain-qc-cache
+                      result: result_c
+
+            - run_batch_d:
+                steps:
+                  - exec_d:
+                      call: googleapis.run.v1.namespaces.jobs.run
+                      args:
+                        name: ${"namespaces/" + project + "/jobs/tbrain-games-qc-job"}
+                        location: ${region}
+                        body:
+                          overrides:
+                            containerOverrides:
+                              - env:
+                                  - name: BATCH_NUMBERS
+                                    value: "31-40"
+                                  - name: RECHECK_ALL
+                                    value: ${recheck_all}
+                                  - name: GCS_BUCKET
+                                    value: tbrain-qc-cache
+                      result: result_d
+
+    - done:
+        return: "All batches completed"

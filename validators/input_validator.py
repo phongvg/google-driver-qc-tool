@@ -35,16 +35,9 @@ def validate_input(df: pd.DataFrame) -> dict:
     result["keyboard_nonempty_count"] = kb_nonempty
     result["has_activity"] = bool(has_keyboard)
 
-    if not has_keyboard:
-        result["status"] = "FAIL" if CONFIG["require_activity"] else "WARN"
-
-        if not has_mouse_dx and not has_mouse_dy:
+    if not has_keyboard and not has_mouse_dx and not has_mouse_dy:
+        result["status"] = "FAIL" if CONFIG["require_activity"] else "PASS"
+        if CONFIG["require_activity"]:
             result["issues"].append("No keyboard input and no mouse movement")
-        elif has_mouse_dx and not has_mouse_dy:
-            result["issues"].append("No keyboard input; mouse has X movement only")
-        elif not has_mouse_dx and has_mouse_dy:
-            result["issues"].append("No keyboard input; mouse has Y movement only")
-        else:
-            result["issues"].append("No keyboard input; mouse movement detected")
 
     return result

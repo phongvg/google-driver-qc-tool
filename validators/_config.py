@@ -15,7 +15,7 @@ CONFIG = {
     "fov_min": 1.0,
     "fov_max": 179.0,
     "allowed_fov_axis": ["horizontal", "vertical"],
-    "require_activity": True,
+    "require_activity": False,
 }
 
 REQUIRED_COLUMNS = [

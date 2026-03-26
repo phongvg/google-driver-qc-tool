@@ -54,10 +54,6 @@ def build_response(report: dict, mp4_created_time: str = "") -> dict:
 
     status = report.get("status", "FAIL")
     reason = summarize_issues(report)
-    if report.get("had_warnings") and reason:
-        reason = f"[WARN] {reason}"
-    elif report.get("had_warnings"):
-        reason = "[WARN]"
 
     return {
         "status": status,

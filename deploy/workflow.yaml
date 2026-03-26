@@ -21,28 +21,11 @@ main:
                       value: tbrain-qc-cache
         result: index_op
 
-    - poll_index_job:
-        call: googleapis.run.v1.namespaces.executions.get
-        args:
-          name: ${"namespaces/" + index_op.metadata.namespace + "/executions/" + index_op.metadata.name}
-        result: index_exec
-
-    - check_index_complete:
-        switch:
-          - condition: ${default(map.get(index_exec.status, "completionTime"), "") == ""}
-            next: sleep_before_poll
-
     - check_index_success:
         switch:
-          - condition: ${default(map.get(index_exec.status, "failedCount"), 0) > 0}
+          - condition: ${default(map.get(index_op.status, "failedCount"), 0) > 0}
             raise: "Index job failed — check Cloud Run logs before running batch jobs"
         next: run_batches_parallel
-
-    - sleep_before_poll:
-        call: sys.sleep
-        args:
-          seconds: 15
-        next: poll_index_job
 
     - run_batches_parallel:
         parallel:

@@ -7,6 +7,13 @@ main:
           - project: "tbrain-services"
           - region: "asia-southeast1"
           - recheck_all: ${default(map.get(args, "recheck_all"), "")}
+          - skip_index: ${default(map.get(args, "skip_index"), false)}
+
+    - maybe_run_index:
+        switch:
+          - condition: ${skip_index == true}
+            next: run_batches_parallel
+        next: run_index_job
 
     - run_index_job:
         call: googleapis.run.v1.namespaces.jobs.run

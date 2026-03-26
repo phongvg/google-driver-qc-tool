@@ -24,7 +24,7 @@ main:
     - poll_index_job:
         call: googleapis.run.v1.namespaces.executions.get
         args:
-          name: ${index_op.metadata.name}
+          name: ${"namespaces/" + index_op.metadata.namespace + "/executions/" + index_op.metadata.name}
         result: index_exec
 
     - check_index_complete:

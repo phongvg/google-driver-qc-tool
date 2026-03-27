@@ -7,6 +7,7 @@ main:
           - project: "tbrain-services"
           - region: "asia-southeast1"
           - recheck_all: ${default(map.get(args, "recheck_all"), "")}
+          - recheck_fail: ${default(map.get(args, "recheck_fail"), "")}
           - skip_index: ${default(map.get(args, "skip_index"), false)}
 
     - maybe_run_index:
@@ -52,6 +53,8 @@ main:
                                     value: "1-10"
                                   - name: RECHECK_ALL
                                     value: ${recheck_all}
+                                  - name: RECHECK_FAIL
+                                    value: ${recheck_fail}
                                   - name: GCS_BUCKET
                                     value: tbrain-qc-cache
                       result: result_a
@@ -71,6 +74,8 @@ main:
                                     value: "11-20"
                                   - name: RECHECK_ALL
                                     value: ${recheck_all}
+                                  - name: RECHECK_FAIL
+                                    value: ${recheck_fail}
                                   - name: GCS_BUCKET
                                     value: tbrain-qc-cache
                       result: result_b
@@ -90,6 +95,8 @@ main:
                                     value: "21-30"
                                   - name: RECHECK_ALL
                                     value: ${recheck_all}
+                                  - name: RECHECK_FAIL
+                                    value: ${recheck_fail}
                                   - name: GCS_BUCKET
                                     value: tbrain-qc-cache
                       result: result_c
@@ -109,6 +116,8 @@ main:
                                     value: "31-40"
                                   - name: RECHECK_ALL
                                     value: ${recheck_all}
+                                  - name: RECHECK_FAIL
+                                    value: ${recheck_fail}
                                   - name: GCS_BUCKET
                                     value: tbrain-qc-cache
                       result: result_d

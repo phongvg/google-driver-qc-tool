@@ -41,6 +41,7 @@ def main():
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
     batch_numbers_env = os.environ.get("BATCH_NUMBERS", "")
     recheck_all = os.environ.get("RECHECK_ALL", "").strip().lower() == "all"
+    recheck_fail = os.environ.get("RECHECK_FAIL", "").strip().lower() == "fail"
 
     batch_numbers = None
     if batch_numbers_env:
@@ -72,7 +73,13 @@ def main():
 
     def run_batch(sheet_name):
         logging.info(f"Processing {sheet_name}...")
-        stats = process_batch_sheet(sheets_service, sheet_name, folder_index, recheck_all=recheck_all)
+        stats = process_batch_sheet(
+            sheets_service,
+            sheet_name,
+            folder_index,
+            recheck_all=recheck_all,
+            recheck_fail=recheck_fail,
+        )
         logging.info(f"{sheet_name}: {stats}")
         return sheet_name, stats
 

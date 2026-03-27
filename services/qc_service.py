@@ -125,12 +125,25 @@ def run_check_internal(drive_service, folder_url: str) -> dict:
             shutil.rmtree(tmp_dir, ignore_errors=True)
 
 
-def _process_row(sheet_name: str, i: int, row: list, folder_index: dict, recheck_all: bool = False):
+def _process_row(
+    sheet_name: str,
+    i: int,
+    row: list,
+    folder_index: dict,
+    recheck_all: bool = False,
+    recheck_fail: bool = False,
+):
     session_id = cell_value(row, COL_SESSION_ID)
     if not session_id:
         return None, None, None
 
-    if not recheck_all and cell_value(row, COL_STATUS):
+    existing_status = cell_value(row, COL_STATUS).upper()
+    if recheck_all:
+        pass
+    elif recheck_fail:
+        if existing_status != "FAIL":
+            return None, "skipped", None
+    elif existing_status:
         return None, "skipped", None
 
     link = cell_value(row, COL_LINK)
@@ -165,7 +178,14 @@ def _process_row(sheet_name: str, i: int, row: list, folder_index: dict, recheck
     return row_updates, stat_key, qc_status
 
 
-def process_batch_sheet(sheets_service, sheet_name: str, folder_index: dict, max_workers: int = 7, recheck_all: bool = False) -> dict:
+def process_batch_sheet(
+    sheets_service,
+    sheet_name: str,
+    folder_index: dict,
+    max_workers: int = 7,
+    recheck_all: bool = False,
+    recheck_fail: bool = False,
+) -> dict:
     # The Google API client/httplib2 transport is not thread-safe enough to share
     # across the top-level batch threads in Cloud Run jobs. Use a thread-local
     # Sheets client for per-sheet reads/writes.
@@ -182,16 +202,33 @@ def process_batch_sheet(sheets_service, sheet_name: str, folder_index: dict, max
         if cell_value(row, COL_SESSION_ID)
     ]
 
-    if not recheck_all:
+    if not recheck_all and not recheck_fail:
         for _, row in pending:
             if cell_value(row, COL_STATUS):
                 stats["skipped"] += 1
+    elif recheck_fail:
+        for _, row in pending:
+            if cell_value(row, COL_STATUS).upper() != "FAIL":
+                stats["skipped"] += 1
 
-    work_items = [(i, row) for i, row in pending if recheck_all or not cell_value(row, COL_STATUS)]
+    work_items = [
+        (i, row)
+        for i, row in pending
+        if recheck_all
+        or (recheck_fail and cell_value(row, COL_STATUS).upper() == "FAIL")
+        or (not recheck_fail and not cell_value(row, COL_STATUS))
+    ]
 
     def process(item):
         i, row = item
-        return _process_row(sheet_name, i, row, folder_index, recheck_all=recheck_all)
+        return _process_row(
+            sheet_name,
+            i,
+            row,
+            folder_index,
+            recheck_all=recheck_all,
+            recheck_fail=recheck_fail,
+        )
 
     total = len(work_items)
     logging.info(f"[{sheet_name}] Processing {total} rows with {max_workers} workers (skipped={stats['skipped']})")

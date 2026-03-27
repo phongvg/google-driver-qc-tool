@@ -21,6 +21,7 @@ Usage:
   ./deploy.sh full-scan
   ./deploy.sh incremental
   ./deploy.sh workflow
+  ./deploy.sh workflow-recheck-fail
   ./deploy.sh workflow-skip-index
   ./deploy.sh start-day
   ./deploy.sh full
@@ -32,6 +33,7 @@ Commands:
   full-scan        Chạy index job với FULL_SCAN=1
   incremental      Chạy index job dạng incremental
   workflow         Chạy workflow kèm incremental index
+  workflow-recheck-fail  Chạy workflow, chỉ recheck các row đang FAIL
   workflow-skip-index  Chạy workflow, bỏ bước index
   start-day        Full scan trước, rồi chạy batch workflow không index lại
   full             Build + deploy + workflow-deploy + workflow
@@ -80,7 +82,7 @@ deploy_batch_job() {
     --image "$IMAGE" \
     --region "$REGION" \
     --service-account "$SA" \
-    --memory 4Gi \
+    --memory 6Gi \
     --cpu 2 \
     --task-timeout 7200 \
     --command python \
@@ -174,6 +176,13 @@ run_workflow() {
     --data='{"recheck_all": ""}'
 }
 
+run_workflow_recheck_fail() {
+  echo "==> Run workflow (recheck FAIL only)"
+  gcloud workflows run "$WORKFLOW_NAME" \
+    --location "$REGION" \
+    --data='{"recheck_all": "", "recheck_fail": "fail"}'
+}
+
 run_workflow_skip_index() {
   echo "==> Run workflow (skip index)"
   gcloud workflows run "$WORKFLOW_NAME" \
@@ -205,6 +214,9 @@ main() {
       ;;
     workflow)
       run_workflow
+      ;;
+    workflow-recheck-fail)
+      run_workflow_recheck_fail
       ;;
     workflow-skip-index)
       run_workflow_skip_index

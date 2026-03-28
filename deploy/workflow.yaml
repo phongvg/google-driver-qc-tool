@@ -122,5 +122,47 @@ main:
                                     value: tbrain-qc-cache
                       result: result_d
 
+            - run_batch_e:
+                steps:
+                  - exec_e:
+                      call: googleapis.run.v1.namespaces.jobs.run
+                      args:
+                        name: ${"namespaces/" + project + "/jobs/tbrain-games-qc-job"}
+                        location: ${region}
+                        body:
+                          overrides:
+                            containerOverrides:
+                              - env:
+                                  - name: BATCH_NUMBERS
+                                    value: "41-50"
+                                  - name: RECHECK_ALL
+                                    value: ${recheck_all}
+                                  - name: RECHECK_FAIL
+                                    value: ${recheck_fail}
+                                  - name: GCS_BUCKET
+                                    value: tbrain-qc-cache
+                      result: result_e
+
+            - run_batch_f:
+                steps:
+                  - exec_f:
+                      call: googleapis.run.v1.namespaces.jobs.run
+                      args:
+                        name: ${"namespaces/" + project + "/jobs/tbrain-games-qc-job"}
+                        location: ${region}
+                        body:
+                          overrides:
+                            containerOverrides:
+                              - env:
+                                  - name: BATCH_NUMBERS
+                                    value: "51-60"
+                                  - name: RECHECK_ALL
+                                    value: ${recheck_all}
+                                  - name: RECHECK_FAIL
+                                    value: ${recheck_fail}
+                                  - name: GCS_BUCKET
+                                    value: tbrain-qc-cache
+                      result: result_f
+
     - done:
         return: "All batches completed"

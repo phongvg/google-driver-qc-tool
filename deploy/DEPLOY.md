@@ -11,7 +11,7 @@ Google Drive
             └─ SESSION_001/    ← session folder (1 CSV + 1 MP4)
 
 Google Sheets
-  └─ Batch 1 ... Batch 40      ← mỗi sheet = 1 batch, mỗi row = 1 session
+  └─ Batch 1 ... Batch 60      ← mỗi sheet = 1 batch, mỗi row = 1 session
 ```
 
 ---
@@ -52,12 +52,14 @@ qc/
 ```text
 Cloud Workflows
   └─ tbrain-games-qc-index     build folder index → lưu GCS
-       └─ [poll đến khi xong]
-            └─ 4 job song song:
+           └─ [poll đến khi xong]
+                └─ 6 job song song:
                  ├─ tbrain-games-qc-job  BATCH_NUMBERS=1-10
                  ├─ tbrain-games-qc-job  BATCH_NUMBERS=11-20
                  ├─ tbrain-games-qc-job  BATCH_NUMBERS=21-30
-                 └─ tbrain-games-qc-job  BATCH_NUMBERS=31-40
+                 ├─ tbrain-games-qc-job  BATCH_NUMBERS=31-40
+                 ├─ tbrain-games-qc-job  BATCH_NUMBERS=41-50
+                 └─ tbrain-games-qc-job  BATCH_NUMBERS=51-60
 
 tbrain-games-qc (Cloud Run Service)
   └─ API: /check, /auto-check, /health

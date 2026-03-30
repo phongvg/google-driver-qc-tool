@@ -13,7 +13,7 @@ main:
     - maybe_run_index:
         switch:
           - condition: ${skip_index == true}
-            next: run_batches_parallel
+            next: run_batches_1_50
         next: run_index_job
 
     - run_index_job:
@@ -33,7 +33,7 @@ main:
         switch:
           - condition: ${default(map.get(index_op.status, "failedCount"), 0) > 0}
             raise: "Index job failed — check Cloud Run logs before running batch jobs"
-        next: run_batches_parallel
+        next: run_batches_1_50
 
     - run_batches_1_50:
         parallel:

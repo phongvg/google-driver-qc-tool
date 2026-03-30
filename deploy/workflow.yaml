@@ -35,7 +35,7 @@ main:
             raise: "Index job failed — check Cloud Run logs before running batch jobs"
         next: run_batches_parallel
 
-    - run_batches_parallel:
+    - run_batches_1_50:
         parallel:
           branches:
             - run_batch_a:
@@ -143,6 +143,9 @@ main:
                                     value: tbrain-qc-cache
                       result: result_e
 
+    - run_batches_51_100:
+        parallel:
+          branches:
             - run_batch_f:
                 steps:
                   - exec_f:

@@ -18,6 +18,13 @@ def _sheets_call_with_retry(fn, retries=3):
                 time.sleep(wait)
             else:
                 raise
+        except (TimeoutError, OSError) as e:
+            if attempt < retries - 1:
+                wait = (2 ** attempt) * 2
+                logging.warning(f"Sheets API timeout, retry {attempt+1}/{retries-1} in {wait}s...")
+                time.sleep(wait)
+            else:
+                raise
 
 
 def col_letter(col_1based: int) -> str:

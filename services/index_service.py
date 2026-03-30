@@ -9,8 +9,9 @@ from google.cloud import storage
 from clients.drive_client import (
     get_drive_service,
     build_folder_index_rich,
-    discover_active_date_folders,
+    get_today_yesterday_names,
 )
+from config import ROOT_FOLDER_IDS
 
 INDEX_BLOB = "folder_index.json"
 INDEX_VERSION = 1
@@ -60,12 +61,13 @@ def _merge(existing_entries: dict, new_entries: dict, now: str) -> tuple[dict, i
         elif not existing.get("folder_id") or existing["folder_id"] == new["folder_id"]:
             merged[name] = new
         else:
-            logging.warning(
-                f"[index] CONFLICT {name!r}: "
-                f"old={existing['folder_id']} new={new['folder_id']} — overwriting"
-            )
+            if existing.get("parent_date_folder") == new.get("parent_date_folder"):
+                logging.warning(
+                    f"[index] CONFLICT {name!r}: duplicate session in same date folder "
+                    f"{new.get('parent_date_folder')!r} — overwriting"
+                )
+                conflicts += 1
             merged[name] = new
-            conflicts += 1
 
     return merged, conflicts
 
@@ -82,29 +84,18 @@ def build_and_save_index(bucket_name: str, date_folders: list = None) -> dict:
     now = _now_iso()
 
     force_full_scan = _is_truthy(os.environ.get("FULL_SCAN", ""))
-    lookback_days = int(os.environ.get("INDEX_LOOKBACK_DAYS", "2"))
-    effective_date_folders = date_folders
 
-    if effective_date_folders is None and not force_full_scan and existing.get("entries"):
-        effective_date_folders = discover_active_date_folders(
-            drive_service,
-            existing.get("updated_at") or existing.get("last_full_scan_at", ""),
-            lookback_days=lookback_days,
-        )
-        logging.info(
-            f"[index] Auto-incremental scan selected {len(effective_date_folders)} date folder(s) "
-            f"from updated_at={existing.get('updated_at', '')!r}"
-        )
+    if date_folders is not None:
+        effective_date_folders = date_folders
+    elif force_full_scan:
+        effective_date_folders = None
+    else:
+        effective_date_folders = get_today_yesterday_names()
 
     is_full_scan = effective_date_folders is None
-
-    if effective_date_folders == []:
-        logging.info("[index] No active date folders detected. Keeping existing index unchanged.")
-        return existing
-
-    logging.info(f"[index] Scanning Drive (date_folders={effective_date_folders})...")
+    logging.info(f"[index] Scanning Drive (roots={len(ROOT_FOLDER_IDS)}, dates={effective_date_folders}, full={is_full_scan})...")
     t0 = time.time()
-    new_entries = build_folder_index_rich(drive_service, effective_date_folders)
+    new_entries = build_folder_index_rich(drive_service, ROOT_FOLDER_IDS, effective_date_folders)
     logging.info(f"[index] Scan complete: {len(new_entries)} folders in {int(time.time()-t0)}s")
 
     if is_full_scan:

@@ -9,7 +9,7 @@ from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 from googleapiclient.http import MediaIoBaseDownload
 
-from config import ROOT_FOLDER_ID
+from config import ROOT_FOLDER_IDS
 
 
 def _call_with_retry(fn, retries=3, backoff=2.0):
@@ -103,83 +103,53 @@ def _parse_iso_datetime(value: str):
         return None
 
 
-def _parse_date_folder_name(name: str):
-    try:
-        return datetime.strptime(name, "%Y-%m-%d").date()
-    except ValueError:
-        return None
+def get_today_yesterday_names() -> list[str]:
+    today = datetime.now().date()
+    yesterday = today - timedelta(days=1)
+    return [f"{d.strftime('%B')} {d.day}" for d in [yesterday, today]]
 
 
-def discover_active_date_folders(
-    drive_service,
-    since_iso: str,
-    lookback_days: int = 2,
-) -> list:
-    root_children = _list_subfolders(drive_service, ROOT_FOLDER_ID)
-    since_dt = _parse_iso_datetime(since_iso)
-
-    if since_dt is None:
-        return [f["name"] for f in root_children]
-
-    cutoff_dt = since_dt - timedelta(days=max(0, lookback_days))
-    cutoff_date = cutoff_dt.date()
-    active = []
-
-    for folder in root_children:
-        folder_date = _parse_date_folder_name(folder["name"])
-        modified_dt = _parse_iso_datetime(folder.get("modifiedTime", ""))
-
-        if folder_date is not None:
-            if folder_date >= cutoff_date:
-                active.append(folder["name"])
-            continue
-
-        if modified_dt is None or modified_dt >= cutoff_dt:
-            active.append(folder["name"])
-
-    return active
-
-
-
-def build_folder_index_rich(drive_service, date_folders: list = None) -> dict:
-    logging.info(f"[folder_index] Building rich index (date_folders={date_folders})...")
+def build_folder_index_rich(drive_service, root_folder_ids: list = None, date_folder_names: list = None) -> dict:
+    if root_folder_ids is None:
+        root_folder_ids = ROOT_FOLDER_IDS
+    date_set = set(date_folder_names) if date_folder_names is not None else None
+    logging.info(f"[folder_index] Building rich index (roots={len(root_folder_ids)}, dates={date_folder_names})...")
     entries = {}
 
-    if date_folders:
-        date_set = set(date_folders)
-        root_children = _list_subfolders(drive_service, ROOT_FOLDER_ID)
-        start_folders = [f for f in root_children if f["name"] in date_set]
-    else:
-        start_folders = _list_subfolders(drive_service, ROOT_FOLDER_ID)
+    for root_id in root_folder_ids:
+        root_children = _list_subfolders(drive_service, root_id)
+        start_folders = [f for f in root_children if f["name"] in date_set] if date_set is not None else root_children
 
-    for date_folder in start_folders:
-        queue = deque(_list_subfolders(drive_service, date_folder["id"]))
-        visited = {date_folder["id"]}
+        for date_folder in start_folders:
+            queue = deque(_list_subfolders(drive_service, date_folder["id"]))
+            visited = {date_folder["id"]}
 
-        while queue:
-            folder = queue.popleft()
-            if folder["id"] in visited:
-                continue
-            visited.add(folder["id"])
+            while queue:
+                folder = queue.popleft()
+                if folder["id"] in visited:
+                    continue
+                visited.add(folder["id"])
 
-            children = _list_subfolders(drive_service, folder["id"])
-            if children:
-                queue.extend(children)
-                continue
+                children = _list_subfolders(drive_service, folder["id"])
+                if children:
+                    queue.extend(children)
+                    continue
 
-            if folder["name"] not in entries:
-                entries[folder["name"]] = {
-                    "folder_id": folder["id"],
-                    "folder_url": f"https://drive.google.com/drive/folders/{folder['id']}",
-                    "folder_name": folder["name"],
-                    "parent_date_folder": date_folder["name"],
-                    "modified_time": folder.get("modifiedTime", ""),
-                }
-            else:
-                logging.warning(
-                    f"[folder_index] INTRA-SCAN CONFLICT {folder['name']!r}: "
-                    f"existing={entries[folder['name']]['folder_id']} new={folder['id']} — keeping first"
-                )
+                if folder["name"] not in entries:
+                    entries[folder["name"]] = {
+                        "folder_id": folder["id"],
+                        "folder_url": f"https://drive.google.com/drive/folders/{folder['id']}",
+                        "folder_name": folder["name"],
+                        "parent_date_folder": date_folder["name"],
+                        "modified_time": folder.get("modifiedTime", ""),
+                    }
+                else:
+                    existing = entries[folder["name"]]
+                    if existing["parent_date_folder"] == date_folder["name"]:
+                        logging.warning(
+                            f"[folder_index] CONFLICT {folder['name']!r}: "
+                            f"duplicate session in same date folder {date_folder['name']!r} — keeping first"
+                        )
 
     logging.info(f"[folder_index] Rich index built: {len(entries)} entries")
     return entries

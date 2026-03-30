@@ -51,7 +51,7 @@ deploy_service() {
     --image "$IMAGE" \
     --region "$REGION" \
     --service-account "$SA" \
-    --memory 4Gi \
+    --memory 8Gi \
     --cpu 2 \
     --timeout 3600 \
     --concurrency 3 \

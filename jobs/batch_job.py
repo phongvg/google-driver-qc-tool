@@ -87,7 +87,7 @@ def main():
     all_results = {}
     start_time = time.time()
 
-    with ThreadPoolExecutor(max_workers=5) as executor:
+    with ThreadPoolExecutor(max_workers=3) as executor:
         futures = {executor.submit(run_batch, s): s for s in sorted_sheets}
         for future in as_completed(futures):
             sheet_name, stats = future.result()

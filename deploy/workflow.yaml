@@ -164,5 +164,89 @@ main:
                                     value: tbrain-qc-cache
                       result: result_f
 
+            - run_batch_g:
+                steps:
+                  - exec_g:
+                      call: googleapis.run.v1.namespaces.jobs.run
+                      args:
+                        name: ${"namespaces/" + project + "/jobs/tbrain-games-qc-job"}
+                        location: ${region}
+                        body:
+                          overrides:
+                            containerOverrides:
+                              - env:
+                                  - name: BATCH_NUMBERS
+                                    value: "61-70"
+                                  - name: RECHECK_ALL
+                                    value: ${recheck_all}
+                                  - name: RECHECK_FAIL
+                                    value: ${recheck_fail}
+                                  - name: GCS_BUCKET
+                                    value: tbrain-qc-cache
+                      result: result_g
+
+            - run_batch_h:
+                steps:
+                  - exec_h:
+                      call: googleapis.run.v1.namespaces.jobs.run
+                      args:
+                        name: ${"namespaces/" + project + "/jobs/tbrain-games-qc-job"}
+                        location: ${region}
+                        body:
+                          overrides:
+                            containerOverrides:
+                              - env:
+                                  - name: BATCH_NUMBERS
+                                    value: "71-80"
+                                  - name: RECHECK_ALL
+                                    value: ${recheck_all}
+                                  - name: RECHECK_FAIL
+                                    value: ${recheck_fail}
+                                  - name: GCS_BUCKET
+                                    value: tbrain-qc-cache
+                      result: result_h
+
+            - run_batch_i:
+                steps:
+                  - exec_i:
+                      call: googleapis.run.v1.namespaces.jobs.run
+                      args:
+                        name: ${"namespaces/" + project + "/jobs/tbrain-games-qc-job"}
+                        location: ${region}
+                        body:
+                          overrides:
+                            containerOverrides:
+                              - env:
+                                  - name: BATCH_NUMBERS
+                                    value: "81-90"
+                                  - name: RECHECK_ALL
+                                    value: ${recheck_all}
+                                  - name: RECHECK_FAIL
+                                    value: ${recheck_fail}
+                                  - name: GCS_BUCKET
+                                    value: tbrain-qc-cache
+                      result: result_i
+
+            - run_batch_j:
+                steps:
+                  - exec_j:
+                      call: googleapis.run.v1.namespaces.jobs.run
+                      args:
+                        name: ${"namespaces/" + project + "/jobs/tbrain-games-qc-job"}
+                        location: ${region}
+                        body:
+                          overrides:
+                            containerOverrides:
+                              - env:
+                                  - name: BATCH_NUMBERS
+                                    value: "91-100"
+                                  - name: RECHECK_ALL
+                                    value: ${recheck_all}
+                                  - name: RECHECK_FAIL
+                                    value: ${recheck_fail}
+                                  - name: GCS_BUCKET
+                                    value: tbrain-qc-cache
+                      result: result_j
+
     - done:
         return: "All batches completed"

@@ -8,32 +8,6 @@ main:
           - region: "asia-southeast1"
           - recheck_all: ${default(map.get(args, "recheck_all"), "")}
           - recheck_fail: ${default(map.get(args, "recheck_fail"), "")}
-          - skip_index: ${default(map.get(args, "skip_index"), false)}
-
-    - maybe_run_index:
-        switch:
-          - condition: ${skip_index == true}
-            next: run_batches_1_50
-        next: run_index_job
-
-    - run_index_job:
-        call: googleapis.run.v1.namespaces.jobs.run
-        args:
-          name: ${"namespaces/" + project + "/jobs/tbrain-games-qc-index"}
-          location: ${region}
-          body:
-            overrides:
-              containerOverrides:
-                - env:
-                    - name: GCS_BUCKET
-                      value: tbrain-qc-cache
-        result: index_op
-
-    - check_index_success:
-        switch:
-          - condition: ${default(map.get(index_op.status, "failedCount"), 0) > 0}
-            raise: "Index job failed — check Cloud Run logs before running batch jobs"
-        next: run_batches_1_50
 
     - run_batches_1_50:
         parallel:
@@ -55,8 +29,6 @@ main:
                                     value: ${recheck_all}
                                   - name: RECHECK_FAIL
                                     value: ${recheck_fail}
-                                  - name: GCS_BUCKET
-                                    value: tbrain-qc-cache
                       result: result_a
 
             - run_batch_b:
@@ -76,8 +48,6 @@ main:
                                     value: ${recheck_all}
                                   - name: RECHECK_FAIL
                                     value: ${recheck_fail}
-                                  - name: GCS_BUCKET
-                                    value: tbrain-qc-cache
                       result: result_b
 
             - run_batch_c:
@@ -97,8 +67,6 @@ main:
                                     value: ${recheck_all}
                                   - name: RECHECK_FAIL
                                     value: ${recheck_fail}
-                                  - name: GCS_BUCKET
-                                    value: tbrain-qc-cache
                       result: result_c
 
             - run_batch_d:
@@ -118,8 +86,6 @@ main:
                                     value: ${recheck_all}
                                   - name: RECHECK_FAIL
                                     value: ${recheck_fail}
-                                  - name: GCS_BUCKET
-                                    value: tbrain-qc-cache
                       result: result_d
 
             - run_batch_e:
@@ -139,8 +105,6 @@ main:
                                     value: ${recheck_all}
                                   - name: RECHECK_FAIL
                                     value: ${recheck_fail}
-                                  - name: GCS_BUCKET
-                                    value: tbrain-qc-cache
                       result: result_e
 
     - run_batches_51_100:
@@ -163,8 +127,6 @@ main:
                                     value: ${recheck_all}
                                   - name: RECHECK_FAIL
                                     value: ${recheck_fail}
-                                  - name: GCS_BUCKET
-                                    value: tbrain-qc-cache
                       result: result_f
 
             - run_batch_g:
@@ -184,8 +146,6 @@ main:
                                     value: ${recheck_all}
                                   - name: RECHECK_FAIL
                                     value: ${recheck_fail}
-                                  - name: GCS_BUCKET
-                                    value: tbrain-qc-cache
                       result: result_g
 
             - run_batch_h:
@@ -205,8 +165,6 @@ main:
                                     value: ${recheck_all}
                                   - name: RECHECK_FAIL
                                     value: ${recheck_fail}
-                                  - name: GCS_BUCKET
-                                    value: tbrain-qc-cache
                       result: result_h
 
             - run_batch_i:
@@ -226,8 +184,6 @@ main:
                                     value: ${recheck_all}
                                   - name: RECHECK_FAIL
                                     value: ${recheck_fail}
-                                  - name: GCS_BUCKET
-                                    value: tbrain-qc-cache
                       result: result_i
 
             - run_batch_j:
@@ -247,8 +203,6 @@ main:
                                     value: ${recheck_all}
                                   - name: RECHECK_FAIL
                                     value: ${recheck_fail}
-                                  - name: GCS_BUCKET
-                                    value: tbrain-qc-cache
                       result: result_j
 
     - done:

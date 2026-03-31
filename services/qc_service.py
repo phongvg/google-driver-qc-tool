@@ -129,7 +129,6 @@ def _process_row(
     sheet_name: str,
     i: int,
     row: list,
-    folder_index: dict,
     recheck_all: bool = False,
     recheck_fail: bool = False,
 ):
@@ -147,41 +146,30 @@ def _process_row(
         return None, "skipped", None
 
     link = cell_value(row, COL_LINK)
-    link_update = None
-    stat_key = "checked"
-
     if not link:
-        folder_url = folder_index.get(session_id)
-        if not folder_url:
-            logging.warning(f"[row {i}] session={session_id!r} — folder not found in index")
-            return None, "not_found", None
-        link = folder_url
-        link_update = {"range": make_range(sheet_name, i, COL_LINK), "values": [[link]]}
-        stat_key = "filled_and_checked"
+        logging.warning(f"[row {i}] session={session_id!r} — no link, skipping")
+        return None, "no_link", None
 
     logging.info(f"[row {i}] START session={session_id!r}")
+    stat_key = "checked"
     qc = run_check_internal(_get_thread_drive_service(), link)
     checked_at = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
     qc_status = qc.get("status", "ERROR")
     logging.info(f"[row {i}] DONE  session={session_id!r} status={qc_status} reason={qc.get('reason', '')!r}")
 
-    row_updates = []
-    if link_update:
-        row_updates.append(link_update)
-    row_updates.extend([
+    row_updates = [
         {"range": make_range(sheet_name, i, COL_STATUS),     "values": [[qc_status]]},
         {"range": make_range(sheet_name, i, COL_REASON),      "values": [[qc.get("reason", "")]]},
         {"range": make_range(sheet_name, i, COL_CHECKED_AT),  "values": [[checked_at]]},
         {"range": make_range(sheet_name, i, COL_VIDEO_DUR),   "values": [[qc.get("video_duration_s", "")]]},
         {"range": make_range(sheet_name, i, COL_UPLOAD_DATE), "values": [[qc.get("upload_date", "")]]},
-    ])
+    ]
     return row_updates, stat_key, qc_status
 
 
 def process_batch_sheet(
     sheets_service,
     sheet_name: str,
-    folder_index: dict,
     max_workers: int = 7,
     recheck_all: bool = False,
     recheck_fail: bool = False,
@@ -191,9 +179,9 @@ def process_batch_sheet(
     # Sheets client for per-sheet reads/writes.
     rows = read_sheet(_get_thread_sheets_service(), sheet_name)
     if len(rows) <= 1:
-        return {"skipped": 0, "filled": 0, "checked": 0, "not_found": 0}
+        return {"skipped": 0, "checked": 0, "no_link": 0}
 
-    stats = {"skipped": 0, "filled": 0, "checked": 0, "not_found": 0, "qc_error": 0, "write_error": 0}
+    stats = {"skipped": 0, "checked": 0, "no_link": 0, "qc_error": 0, "write_error": 0}
     lock = threading.Lock()
 
     pending = [
@@ -225,7 +213,6 @@ def process_batch_sheet(
             sheet_name,
             i,
             row,
-            folder_index,
             recheck_all=recheck_all,
             recheck_fail=recheck_fail,
         )
@@ -262,15 +249,13 @@ def process_batch_sheet(
                 continue
             with lock:
                 completed += 1
-                if stat_key == "not_found":
-                    stats["not_found"] += 1
-                elif stat_key in ("checked", "filled_and_checked"):
+                if stat_key == "no_link":
+                    stats["no_link"] += 1
+                elif stat_key == "checked":
                     if qc_status == "ERROR":
                         stats["qc_error"] += 1
                     else:
                         stats["checked"] += 1
-                    if stat_key == "filled_and_checked":
-                        stats["filled"] += 1
                     if row_updates:
                         pending_writes.extend(row_updates)
                         rows_pending += 1

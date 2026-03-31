@@ -48,7 +48,7 @@ def cell_value(row: list, col_1based: int) -> str:
 def read_sheet(sheets_service, sheet_name: str) -> list:
     result = _sheets_call_with_retry(lambda: sheets_service.spreadsheets().values().get(
         spreadsheetId=SPREADSHEET_ID,
-        range=f"'{sheet_name}'!A:Y",
+        range=f"'{sheet_name}'!A:U",
         valueRenderOption="UNFORMATTED_VALUE",
     ).execute())
     return result.get("values", [])

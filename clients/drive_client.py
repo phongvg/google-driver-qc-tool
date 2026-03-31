@@ -4,12 +4,20 @@ import logging
 from datetime import datetime, timedelta, timezone
 from collections import deque
 
+import httplib2
 from google.auth import default
+from google.auth.transport.httplib2 import AuthorizedHttp
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 from googleapiclient.http import MediaIoBaseDownload
 
 from config import ROOT_FOLDER_IDS
+
+HTTP_TIMEOUT = 120
+
+
+def _build_authorized_http(creds):
+    return AuthorizedHttp(creds, http=httplib2.Http(timeout=HTTP_TIMEOUT))
 
 
 def _call_with_retry(fn, retries=3, backoff=2.0):
@@ -27,7 +35,7 @@ def _call_with_retry(fn, retries=3, backoff=2.0):
 
 def get_drive_service():
     creds, _ = default(scopes=["https://www.googleapis.com/auth/drive.readonly"])
-    return build("drive", "v3", credentials=creds, cache_discovery=False)
+    return build("drive", "v3", http=_build_authorized_http(creds), cache_discovery=False)
 
 
 def get_services():
@@ -35,8 +43,8 @@ def get_services():
         "https://www.googleapis.com/auth/drive.readonly",
         "https://www.googleapis.com/auth/spreadsheets",
     ])
-    drive = build("drive", "v3", credentials=creds, cache_discovery=False)
-    sheets = build("sheets", "v4", credentials=creds, cache_discovery=False)
+    drive = build("drive", "v3", http=_build_authorized_http(creds), cache_discovery=False)
+    sheets = build("sheets", "v4", http=_build_authorized_http(creds), cache_discovery=False)
     return drive, sheets
 
 

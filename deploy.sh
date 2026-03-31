@@ -15,6 +15,7 @@ usage() {
 Usage:
   ./deploy.sh build
   ./deploy.sh deploy
+  ./deploy.sh deploy-job
   ./deploy.sh workflow-deploy
   ./deploy.sh workflow
   ./deploy.sh workflow-recheck-fail
@@ -23,10 +24,11 @@ Usage:
 Commands:
   build                Build image mới
   deploy               Deploy service + batch job
+  deploy-job           Deploy chỉ batch job
   workflow-deploy      Deploy lại workflow
   workflow             Chạy workflow (batch QC)
   workflow-recheck-fail  Chạy workflow, chỉ recheck các row đang FAIL
-  full                 Build + deploy + workflow-deploy + workflow
+  full                 Build + deploy-job + workflow-deploy + workflow
 EOF
 }
 
@@ -104,6 +106,9 @@ main() {
     deploy)
       deploy_all
       ;;
+    deploy-job)
+      deploy_batch_job
+      ;;
     workflow-deploy)
       deploy_workflow
       ;;
@@ -115,7 +120,7 @@ main() {
       ;;
     full)
       build_image
-      deploy_all
+      deploy_batch_job
       deploy_workflow
       run_workflow
       ;;

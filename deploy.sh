@@ -5,7 +5,6 @@ IMAGE="asia-southeast1-docker.pkg.dev/tbrain-services/cloud-run-source-deploy/ga
 REGION="asia-southeast1"
 SA="863797867932-compute@developer.gserviceaccount.com"
 
-SERVICE_NAME="tbrain-games-qc"
 BATCH_JOB_NAME="tbrain-games-qc-job"
 WORKFLOW_NAME="tbrain-games-qc-workflow"
 WORKFLOW_SOURCE="deploy/workflow.yaml"
@@ -23,10 +22,10 @@ Usage:
 
 Commands:
   build                Build image mới
-  deploy               Deploy service + batch job
+  deploy               Deploy batch job
   deploy-job           Deploy chỉ batch job
   workflow-deploy      Deploy lại workflow
-  workflow             Chạy workflow (batch QC)
+  workflow             Chạy workflow (batch QC, mặc định quét các row không PASS)
   workflow-recheck-fail  Chạy workflow, chỉ recheck các row đang FAIL
   full                 Build + deploy-job + workflow-deploy + workflow
 EOF
@@ -35,22 +34,6 @@ EOF
 build_image() {
   echo "==> Build image"
   gcloud builds submit --tag "$IMAGE"
-}
-
-deploy_service() {
-  echo "==> Deploy service: $SERVICE_NAME"
-  gcloud run deploy "$SERVICE_NAME" \
-    --image "$IMAGE" \
-    --region "$REGION" \
-    --service-account "$SA" \
-    --memory 8Gi \
-    --cpu 2 \
-    --timeout 3600 \
-    --concurrency 3 \
-    --execution-environment gen2 \
-    --max-instances 4 \
-    --ingress all \
-    --no-invoker-iam-check
 }
 
 deploy_batch_job() {
@@ -67,7 +50,6 @@ deploy_batch_job() {
 }
 
 deploy_all() {
-  deploy_service
   deploy_batch_job
 }
 
@@ -80,7 +62,7 @@ deploy_workflow() {
 }
 
 run_workflow() {
-  echo "==> Run workflow"
+  echo "==> Run workflow (scan non-PASS rows)"
   gcloud workflows run "$WORKFLOW_NAME" \
     --location "$REGION" \
     --data='{"recheck_all": ""}'

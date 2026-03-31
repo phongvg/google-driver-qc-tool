@@ -30,6 +30,23 @@ def _get_thread_sheets_service():
     return _thread_local.sheets_service
 
 
+def _normalize_status(status: str) -> str:
+    return str(status or "").strip().upper()
+
+
+def _should_process_row(
+    existing_status: str,
+    recheck_all: bool = False,
+    recheck_fail: bool = False,
+) -> bool:
+    normalized = _normalize_status(existing_status)
+    if recheck_all:
+        return True
+    if recheck_fail:
+        return normalized == "FAIL"
+    return normalized != "PASS"
+
+
 def build_response(report: dict, mp4_created_time: str = "") -> dict:
     checks = report.get("checks", {})
     video = checks.get("video_validation", {})
@@ -136,13 +153,12 @@ def _process_row(
     if not session_id:
         return None, None, None
 
-    existing_status = cell_value(row, COL_STATUS).upper()
-    if recheck_all:
-        pass
-    elif recheck_fail:
-        if existing_status != "FAIL":
-            return None, "skipped", None
-    elif existing_status:
+    existing_status = cell_value(row, COL_STATUS)
+    if not _should_process_row(
+        existing_status,
+        recheck_all=recheck_all,
+        recheck_fail=recheck_fail,
+    ):
         return None, "skipped", None
 
     link = cell_value(row, COL_LINK)
@@ -190,22 +206,16 @@ def process_batch_sheet(
         if cell_value(row, COL_SESSION_ID)
     ]
 
-    if not recheck_all and not recheck_fail:
-        for _, row in pending:
-            if cell_value(row, COL_STATUS):
-                stats["skipped"] += 1
-    elif recheck_fail:
-        for _, row in pending:
-            if cell_value(row, COL_STATUS).upper() != "FAIL":
-                stats["skipped"] += 1
-
     work_items = [
         (i, row)
         for i, row in pending
-        if recheck_all
-        or (recheck_fail and cell_value(row, COL_STATUS).upper() == "FAIL")
-        or (not recheck_fail and not cell_value(row, COL_STATUS))
+        if _should_process_row(
+            cell_value(row, COL_STATUS),
+            recheck_all=recheck_all,
+            recheck_fail=recheck_fail,
+        )
     ]
+    stats["skipped"] = len(pending) - len(work_items)
 
     def process(item):
         i, row = item

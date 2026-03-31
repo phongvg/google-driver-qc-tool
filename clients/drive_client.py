@@ -5,8 +5,8 @@ from datetime import datetime, timedelta, timezone
 from collections import deque
 
 import httplib2
+import google_auth_httplib2
 from google.auth import default
-from google.auth.transport.httplib2 import AuthorizedHttp
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 from googleapiclient.http import MediaIoBaseDownload
@@ -15,7 +15,7 @@ from config import ROOT_FOLDER_IDS
 
 
 def _build_http(creds):
-    return AuthorizedHttp(creds, http=httplib2.Http(timeout=120))
+    return google_auth_httplib2.AuthorizedHttp(creds, http=httplib2.Http(timeout=120))
 
 
 def _call_with_retry(fn, retries=3, backoff=2.0):

@@ -1,0 +1,7 @@
+steps:
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['build', '--no-cache', '-t', '$_IMAGE', '.']
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['push', '$_IMAGE']
+substitutions:
+  _IMAGE: 'asia-southeast1-docker.pkg.dev/tbrain-services/cloud-run-source-deploy/games-qc:latest'

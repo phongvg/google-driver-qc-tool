@@ -13,11 +13,9 @@ from googleapiclient.http import MediaIoBaseDownload
 
 from config import ROOT_FOLDER_IDS
 
-HTTP_TIMEOUT = 120
 
-
-def _build_authorized_http(creds):
-    return AuthorizedHttp(creds, http=httplib2.Http(timeout=HTTP_TIMEOUT))
+def _build_http(creds):
+    return AuthorizedHttp(creds, http=httplib2.Http(timeout=120))
 
 
 def _call_with_retry(fn, retries=3, backoff=2.0):
@@ -35,7 +33,7 @@ def _call_with_retry(fn, retries=3, backoff=2.0):
 
 def get_drive_service():
     creds, _ = default(scopes=["https://www.googleapis.com/auth/drive.readonly"])
-    return build("drive", "v3", http=_build_authorized_http(creds), cache_discovery=False)
+    return build("drive", "v3", http=_build_http(creds), cache_discovery=False)
 
 
 def get_services():
@@ -43,8 +41,8 @@ def get_services():
         "https://www.googleapis.com/auth/drive.readonly",
         "https://www.googleapis.com/auth/spreadsheets",
     ])
-    drive = build("drive", "v3", http=_build_authorized_http(creds), cache_discovery=False)
-    sheets = build("sheets", "v4", http=_build_authorized_http(creds), cache_discovery=False)
+    drive = build("drive", "v3", http=_build_http(creds), cache_discovery=False)
+    sheets = build("sheets", "v4", http=_build_http(creds), cache_discovery=False)
     return drive, sheets
 
 

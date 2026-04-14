@@ -1,4 +1,3 @@
-import re
 import time
 import logging
 
@@ -8,6 +7,8 @@ from google.auth import default
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 from googleapiclient.http import MediaIoBaseDownload
+
+from .drive_links import extract_folder_id
 
 
 def _build_http(creds):
@@ -40,19 +41,6 @@ def get_services():
     drive = build("drive", "v3", http=_build_http(creds), cache_discovery=False)
     sheets = build("sheets", "v4", http=_build_http(creds), cache_discovery=False)
     return drive, sheets
-
-
-def extract_folder_id(folder_url: str) -> str:
-    for pattern in [r"/folders/([a-zA-Z0-9_-]+)", r"id=([a-zA-Z0-9_-]+)"]:
-        match = re.search(pattern, folder_url)
-        if match:
-            return match.group(1)
-    raw = folder_url.strip()
-    if re.fullmatch(r"[a-zA-Z0-9_-]{10,}", raw):
-        return raw
-    raise ValueError("Invalid Google Drive folder link")
-
-
 def list_files_in_folder(drive_service, folder_id: str):
     response = _call_with_retry(lambda: drive_service.files().list(
         q=f"'{folder_id}' in parents and trashed = false",
@@ -72,5 +60,4 @@ def download_file(drive_service, file_id: str, output_path: str):
         done = False
         while not done:
             _, done = downloader.next_chunk()
-
 

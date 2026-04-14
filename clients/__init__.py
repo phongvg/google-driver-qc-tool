@@ -6,7 +6,7 @@ from .drive_client import (
     download_file,
 )
 from .sheets_client import (
-    get_all_batch_sheet_names,
+    get_sheet_name_by_gid,
     read_sheet,
     batch_write,
     cell_value,

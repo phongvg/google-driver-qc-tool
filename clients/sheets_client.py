@@ -1,4 +1,3 @@
-import re
 import time
 import logging
 
@@ -48,7 +47,7 @@ def cell_value(row: list, col_1based: int) -> str:
 def read_sheet(sheets_service, sheet_name: str) -> list:
     result = _sheets_call_with_retry(lambda: sheets_service.spreadsheets().values().get(
         spreadsheetId=SPREADSHEET_ID,
-        range=f"'{sheet_name}'!A:U",
+        range=f"'{sheet_name}'!A:Y",
         valueRenderOption="UNFORMATTED_VALUE",
     ).execute())
     return result.get("values", [])
@@ -65,9 +64,12 @@ def batch_write(sheets_service, updates: list, chunk_size: int = 100):
         ).execute())
 
 
-def get_all_batch_sheet_names(sheets_service) -> list:
+def get_sheet_name_by_gid(sheets_service, gid: int) -> str:
     spreadsheet = _sheets_call_with_retry(lambda: sheets_service.spreadsheets().get(
         spreadsheetId=SPREADSHEET_ID
     ).execute())
-    all_sheets = [s["properties"]["title"] for s in spreadsheet["sheets"]]
-    return [s for s in all_sheets if re.match(r"^Batch\s*\d+$", s, re.IGNORECASE)]
+    for sheet in spreadsheet.get("sheets", []):
+        props = sheet.get("properties", {})
+        if props.get("sheetId") == gid:
+            return props["title"]
+    raise ValueError(f"Sheet with gid={gid} not found")

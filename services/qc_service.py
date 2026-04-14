@@ -1,19 +1,20 @@
 import os
+import re
 import logging
 import shutil
 import tempfile
 import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from datetime import datetime
 
 from config import (
     COL_SESSION_ID, COL_LINK,
-    COL_STATUS, COL_REASON, COL_CHECKED_AT, COL_VIDEO_DUR, COL_UPLOAD_DATE,
+    COL_STATUS, COL_REASON, COL_VIDEO_DUR,
 )
-from clients.drive_client import get_drive_service, get_services, extract_folder_id, list_files_in_folder, download_file
+from clients.drive_client import get_drive_service, get_services, list_files_in_folder, download_file
+from clients.drive_links import extract_folder_id, is_supported_drive_folder_link
 from clients.sheets_client import cell_value, make_range, read_sheet, batch_write
-from core.qc_core import run_qc, run_csv_only, summarize_issues
-
+from core.qc_core import run_qc, summarize_issues
+from services.target_sessions import get_target_sessions_for_sheet, has_explicit_targets
 _thread_local = threading.local()
 _disk_semaphore = threading.Semaphore(4)
 
@@ -36,15 +37,17 @@ def _normalize_status(status: str) -> str:
 
 def _should_process_row(
     existing_status: str,
+    existing_video_duration: str = "",
     recheck_all: bool = False,
     recheck_fail: bool = False,
+    force_duration_refresh: bool = False,
 ) -> bool:
     normalized = _normalize_status(existing_status)
     if recheck_all:
         return True
     if recheck_fail:
         return normalized == "FAIL"
-    return normalized != "PASS"
+    return True
 
 
 def build_response(report: dict, mp4_created_time: str = "") -> dict:
@@ -115,16 +118,11 @@ def run_check_internal(drive_service, folder_url: str) -> dict:
                 logging.info(f"[check] Downloading {csv_files[0]['name']}...")
                 download_file(drive_service, csv_files[0]["id"], csv_path)
 
-                csv_report = run_csv_only(csv_path)
-                if csv_report["status"] == "FAIL":
-                    logging.info(f"[check] CSV failed — skipping MP4 download")
-                    report = csv_report
-                else:
-                    mp4_path = os.path.join(tmp_dir, mp4_files[0]["name"])
-                    logging.info(f"[check] Downloading {mp4_files[0]['name']}...")
-                    download_file(drive_service, mp4_files[0]["id"], mp4_path)
-                    logging.info(f"[check] Running QC...")
-                    report = run_qc(csv_path, mp4_path)
+                mp4_path = os.path.join(tmp_dir, mp4_files[0]["name"])
+                logging.info(f"[check] Downloading {mp4_files[0]['name']}...")
+                download_file(drive_service, mp4_files[0]["id"], mp4_path)
+                logging.info(f"[check] Running QC...")
+                report = run_qc(csv_path, mp4_path)
             finally:
                 shutil.rmtree(tmp_dir, ignore_errors=True)
                 tmp_dir = None
@@ -148,16 +146,17 @@ def _process_row(
     row: list,
     recheck_all: bool = False,
     recheck_fail: bool = False,
+    force_duration_refresh: bool = False,
 ):
     session_id = cell_value(row, COL_SESSION_ID)
-    if not session_id:
-        return None, None, None
-
     existing_status = cell_value(row, COL_STATUS)
+    existing_video_duration = cell_value(row, COL_VIDEO_DUR)
     if not _should_process_row(
         existing_status,
+        existing_video_duration=existing_video_duration,
         recheck_all=recheck_all,
         recheck_fail=recheck_fail,
+        force_duration_refresh=force_duration_refresh,
     ):
         return None, "skipped", None
 
@@ -166,19 +165,23 @@ def _process_row(
         logging.warning(f"[row {i}] session={session_id!r} — no link, skipping")
         return None, "no_link", None
 
-    logging.info(f"[row {i}] START session={session_id!r}")
+    row_label = session_id or f"row-{i}"
+    logging.info(f"[row {i}] START session={row_label!r}")
     stat_key = "checked"
-    qc = run_check_internal(_get_thread_drive_service(), link)
-    checked_at = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
+    if "/api/viewer?" in link:
+        logging.warning(f"[row {i}] session={row_label!r} — viewer link is not supported")
+        return None, "no_link", None
+    elif is_supported_drive_folder_link(link):
+        qc = run_check_internal(_get_thread_drive_service(), link)
+    else:
+        logging.warning(f"[row {i}] session={row_label!r} — unrecognized link format, skipping")
+        return None, "no_link", None
     qc_status = qc.get("status", "ERROR")
-    logging.info(f"[row {i}] DONE  session={session_id!r} status={qc_status} reason={qc.get('reason', '')!r}")
-
+    logging.info(f"[row {i}] DONE  session={row_label!r} status={qc_status} duration={qc.get('video_duration_s', '')!r}")
     row_updates = [
-        {"range": make_range(sheet_name, i, COL_STATUS),     "values": [[qc_status]]},
-        {"range": make_range(sheet_name, i, COL_REASON),      "values": [[qc.get("reason", "")]]},
-        {"range": make_range(sheet_name, i, COL_CHECKED_AT),  "values": [[checked_at]]},
-        {"range": make_range(sheet_name, i, COL_VIDEO_DUR),   "values": [[qc.get("video_duration_s", "")]]},
-        {"range": make_range(sheet_name, i, COL_UPLOAD_DATE), "values": [[qc.get("upload_date", "")]]},
+        {"range": make_range(sheet_name, i, COL_STATUS), "values": [[qc_status]]},
+        {"range": make_range(sheet_name, i, COL_REASON), "values": [[qc.get("reason", "") if qc_status == "FAIL" else ""]]},
+        {"range": make_range(sheet_name, i, COL_VIDEO_DUR), "values": [[qc.get("video_duration_s", "")]]},
     ]
     return row_updates, stat_key, qc_status
 
@@ -203,16 +206,32 @@ def process_batch_sheet(
     pending = [
         (i, row)
         for i, row in enumerate(rows[1:], start=2)
-        if cell_value(row, COL_SESSION_ID)
+        if cell_value(row, COL_LINK)
     ]
+
+    target_sessions = None
+    if re.match(r"^Batch\s*\d+$", str(sheet_name or ""), re.IGNORECASE):
+        target_sessions = get_target_sessions_for_sheet(sheet_name)
+    force_duration_refresh = bool(target_sessions) and has_explicit_targets() and not (recheck_all or recheck_fail)
+    if target_sessions is not None:
+        pending = [
+            (i, row)
+            for i, row in pending
+            if cell_value(row, COL_SESSION_ID) in target_sessions
+        ]
+        logging.info(f"[{sheet_name}] Targeted sessions enabled: {len(target_sessions)} configured")
+        if force_duration_refresh:
+            logging.info(f"[{sheet_name}] Force duration refresh enabled for targeted sessions")
 
     work_items = [
         (i, row)
         for i, row in pending
         if _should_process_row(
             cell_value(row, COL_STATUS),
+            existing_video_duration=cell_value(row, COL_VIDEO_DUR),
             recheck_all=recheck_all,
             recheck_fail=recheck_fail,
+            force_duration_refresh=force_duration_refresh,
         )
     ]
     stats["skipped"] = len(pending) - len(work_items)
@@ -225,6 +244,7 @@ def process_batch_sheet(
             row,
             recheck_all=recheck_all,
             recheck_fail=recheck_fail,
+            force_duration_refresh=force_duration_refresh,
         )
 
     total = len(work_items)
